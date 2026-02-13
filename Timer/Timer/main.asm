@@ -47,7 +47,6 @@ SETUP:
 	LDI		R16,	(1<<CS02)|(1<<CS00) //Prescaler 1024
 	OUT		TCCR0B, R16
 	LDI		R18,	0x00 //Registro de contador
-	LDI		R19,	0x00 //Contador de overflows timer
 	LDI		R16, 61 //Precargar 61 TCNT0
 	OUT		TCNT0, R16
 
