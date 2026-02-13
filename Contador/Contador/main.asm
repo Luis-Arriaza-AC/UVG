@@ -31,7 +31,7 @@ SETUP:
 	LDI R23, 0x20 //pin habilitar pullup en c
 	OUT DDRB, R16	//Configura pins 0-3 port b como salida
 	OUT DDRC, R22 //Configura pins 0-4 port c como salida
-	OUT DDRD, R16 //Configura pins port d como entrada y salida
+	OUT DDRD, R16 //Configura pins port d como 4-7 entrada y 0-3 xsalida
 	OUT PORTB, R17 //Apaga todos los pines de port b
 	OUT PORTD, R18 //habilita pullup pins 4,5,6,7 port D
 	OUT PORTC, R23 //habilitar pullups en C
