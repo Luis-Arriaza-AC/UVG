@@ -72,7 +72,7 @@ Contador:
 	INC		R23	//Incrementa overflows
 	CPI		R23, 10
 	BRNE	Retorno
-	LDI		R23,	0x00 //Resetea contador
+	LDI		R23,	0x00 //Resetea contador overflows
 	INC		R18 //Incrementar contador binario
 	ANDI	R18, 0x0F //Máscara para solo los primero 4 bits
 	OUT		PORTB, R18 //Mostrar en PORTB
@@ -205,7 +205,7 @@ Once:
 	OUT		PORTD, R26
 	RET
 Doce:
-	LDI		R26, 0b00001111
+	LDI		R26, 0b00111001
 	OUT		PORTD, R26
 	RET
 Trece:
