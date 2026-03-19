@@ -32,13 +32,14 @@ JMP TIM0_OVF_ISR
 
  /****************************************/
 // Configuración de la pila
+SETUP:
 LDI     R16, LOW(RAMEND)
 OUT     SPL, R16
 LDI     R16, HIGH(RAMEND)
 OUT     SPH, R16
 /****************************************/
 // Configuracion MCU
-SETUP:
+
 	//Puertos
 	LDI		R16,	0xFF //Todo puerto D salida para display
 	OUT		DDRD,	R16
@@ -98,6 +99,7 @@ MAIN_LOOP:
 	MOV		R20, R22
 	CALL	DISPLAY
 	SBI		PORTC, 1
+	CALL	DELAY
 	//Display 2
 	CBI		PORTC, 1
 	CBI		PORTC, 0
@@ -116,6 +118,13 @@ Contador_leds:
 	RET
 
 Retorno:
+	RET
+
+DELAY:
+	LDI R27, 4
+Delay1:
+	DEC R27
+	BRNE Delay1
 	RET
 
 Contador_disp:
