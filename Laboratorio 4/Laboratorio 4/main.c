@@ -50,7 +50,7 @@ int main(void)
 	while (1)
 	{
 		uint16_t valor = leer_adc();
-		uint8_t conversion = (uint8_t)((valor*256UL)/1024);
+		uint8_t conversion = (uint8_t)((valor*255UL)/1023);
 		uint8_t seg_high = (conversion>>4);
 		uint8_t seg_low = (conversion) & (0x0F);
 		multiplex(seg_high, seg_low);
