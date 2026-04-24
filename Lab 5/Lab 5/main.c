@@ -3,25 +3,25 @@
  *
  * Created: 10/4/26
  * Author: Luis Arriaza
- * Description: Control de servo SG90 con potenciómetro en A6
+ * Description: Control de dos servos SG90
+ *              Servo 1 ? Timer1 / D9  / pot en A6
+ *              Servo 2 ? Timer2 / D3  / pot en A7
  */
 /****************************************/
 #include <avr/io.h>
 #include <stdint.h>
 #include <util/delay.h>
 #include "libreria/pwm.h"
+#include "libreria/servo.h"
 
-// Ajusta estos dos valores hasta obtener 0° y 180° reales.
-// Empieza con estos y mueve el pot a los extremos.
-// Si no llega a 0°  ? baja SERVO_MIN (mínimo ~600)
-// Si no llega a 180° ? sube SERVO_MAX (máximo ~5500, cuidado de no forzar el motor)
+//Valores servo timer 1
 #define SERVO_TOP  39999
 #define SERVO_MIN  1000
 #define SERVO_MAX  5000
 
 /****************************************/
 void     setup(void);
-uint16_t leer_adc(void);
+uint16_t leer_adc(uint8_t canal);
 uint16_t adc_a_servo(uint16_t adc_val);
 
 /****************************************/
@@ -31,9 +31,16 @@ int main(void)
 
     while (1)
     {
-        uint16_t adc_raw = leer_adc();
-        uint16_t duty    = adc_a_servo(adc_raw);
+        //Servo 1: Timer1, pot en A6
+        uint16_t adc_a6 = leer_adc(6);
+        uint16_t duty   = adc_a_servo(adc_a6);
         pwm_set_duty(PWM_TIMER1, PWM_CHANNEL_A, duty);
+
+        // --- Servo 2: Timer2, pot en A7 (canal 7) ---
+        uint16_t adc_a7 = leer_adc(7);
+        uint8_t  angulo = (uint8_t)((uint32_t)adc_a7 * 180 / 1023);
+        servo_set_angle(angulo);
+
         _delay_ms(20);
     }
 }
@@ -41,12 +48,12 @@ int main(void)
 /****************************************/
 void setup(void)
 {
-    // ADC en PC6 (A6), referencia AVCC, prescaler 128
-    ADMUX  = (1 << REFS0) | (1 << MUX2) | (1 << MUX1);
+    // ADC: referencia AVCC, prescaler 128
+    // El canal se selecciona en leer_adc() antes de cada conversión
     ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
-    // Servo en D9 (OC1A), Timer1 16-bit, 50 Hz
-    pwm_config_t servo = {
+    // Servo 1 en D9 (OC1A), Timer1 16-bit, 50 Hz — sin cambios
+    pwm_config_t servo1 = {
         .timer     = PWM_TIMER1,
         .channel   = PWM_CHANNEL_A,
         .mode      = PWM_MODE_FAST,
@@ -55,11 +62,20 @@ void setup(void)
         .duty      = SERVO_MIN,
         .top       = SERVO_TOP
     };
-    pwm_init(&servo);
+    pwm_init(&servo1);
+
+    // Servo 2 en D3 (OC2B), Timer2, 16.384 ms
+    servo_init();
 }
 
-uint16_t leer_adc(void)
+/**
+ * leer_adc() — selecciona el canal antes de convertir.
+ * canal: 0-7 corresponde a A0-A7.
+ */
+uint16_t leer_adc(uint8_t canal)
 {
+    // REFS0 = AVCC, los 3 bits bajos de MUX seleccionan el canal
+    ADMUX  = (1 << REFS0) | (canal & 0x07);
     ADCSRA |= (1 << ADSC);
     while (ADCSRA & (1 << ADSC));
     return ADC;
