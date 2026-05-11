@@ -1,0 +1,207 @@
+/*
+ * main.c
+ *
+ *   A0–A3  ? Potenciómetros
+ *   D3     ? OC2B  Servo 3
+ *   D4     ? PCINT20  Botón modo ?
+ *   D5     ? PCINT21  Botón modo +
+ *   D6     ? LED bit 0
+ *   D7     ? LED bit 1
+ *   D9     ? OC1A  Servo 0
+ *   D10    ? OC1B  Servo 1
+ *   D11    ? OC2A  Servo 2
+ *   D0/D1  ? RX/TX UART
+ */
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <stddef.h>
+#include <util/delay.h>
+#include <stdint.h>
+#include "libreria/servo.h"
+#include "libreria/UART.h"
+#include "libreria/mode_uart.h"
+
+/* ?? Pines ???????????????????????????????????????????????????????? */
+#define BTN_INC_PIN   PD5
+#define BTN_DEC_PIN   PD4
+#define LED_BIT0_PIN  PD6
+#define LED_BIT1_PIN  PD7
+#define NUM_MODES     4
+
+/* ?? Ring buffer UART — escrito por ISR, leído por mode_uart ????????
+ * Definido aquí para que el vector ISR y el buffer estén en la misma
+ * unidad de compilación y el linker no genere conflictos.
+ */
+#define RX_BUF_SIZE  16u
+#define RX_BUF_MASK  (RX_BUF_SIZE - 1u)
+
+static volatile char    rx_buf[RX_BUF_SIZE];
+static volatile uint8_t rx_head = 0;
+static volatile uint8_t rx_tail = 0;
+
+ISR(USART_RX_vect)
+{
+    char c = UDR0;
+    uint8_t next = (rx_head + 1u) & RX_BUF_MASK;
+    if (next != rx_tail) {
+        rx_buf[rx_head] = c;
+        rx_head = next;
+    }
+}
+
+/*
+ * uart_rx_get() — función pública para que mode_uart.c consuma
+ * caracteres del buffer sin acceder directamente a las variables.
+ * Devuelve 1 si había dato, 0 si el buffer estaba vacío.
+ */
+uint8_t uart_rx_get(char *out)
+{
+    if (rx_head == rx_tail) return 0;
+    *out = rx_buf[rx_tail];
+    rx_tail = (rx_tail + 1u) & RX_BUF_MASK;
+    return 1;
+}
+
+/*
+ * uart_rx_flush() — vacía el buffer; llamada al entrar al modo UART
+ * para descartar caracteres que llegaron mientras estaba inactivo.
+ */
+void uart_rx_flush(void)
+{
+    cli();
+    rx_head = rx_tail = 0;
+    sei();
+}
+
+/* ?? Estado global de modo ???????????????????????????????????????? */
+static volatile uint8_t mode_current = 0;
+static volatile uint8_t mode_changed = 0;
+
+/* ?? ISR PCINT2 — botones D4 y D5 ???????????????????????????????? */
+ISR(PCINT2_vect)
+{
+    uint8_t pind_now = PIND;
+
+    if (!(pind_now & (1 << BTN_INC_PIN))) {
+        mode_current = (mode_current + 1) & (NUM_MODES - 1);
+        mode_changed = 1;
+    } else if (!(pind_now & (1 << BTN_DEC_PIN))) {
+        mode_current = (mode_current - 1) & (NUM_MODES - 1);
+        mode_changed = 1;
+    }
+}
+
+/* ?? LEDs ????????????????????????????????????????????????????????? */
+static void leds_update(uint8_t mode)
+{
+    if (mode & 0x01) PORTD |=  (1 << LED_BIT0_PIN);
+    else             PORTD &= ~(1 << LED_BIT0_PIN);
+    if (mode & 0x02) PORTD |=  (1 << LED_BIT1_PIN);
+    else             PORTD &= ~(1 << LED_BIT1_PIN);
+}
+
+/* ?? ADC ?????????????????????????????????????????????????????????? */
+static void adc_init(void)
+{
+    ADMUX  = (1 << REFS0);
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+}
+
+static uint16_t adc_read(uint8_t ch)
+{
+    ADMUX  = (ADMUX & 0xF0) | (ch & 0x0F);
+    ADCSRA |= (1 << ADSC);
+    while (ADCSRA & (1 << ADSC));
+    return ADC;
+}
+
+/* ?? GPIO ????????????????????????????????????????????????????????? */
+static void gpio_init(void)
+{
+    DDRD  &= ~((1 << BTN_INC_PIN) | (1 << BTN_DEC_PIN));
+    PORTD |=   (1 << BTN_INC_PIN) | (1 << BTN_DEC_PIN);
+    DDRD  |=  (1 << LED_BIT0_PIN) | (1 << LED_BIT1_PIN);
+    PORTD &= ~((1 << LED_BIT0_PIN) | (1 << LED_BIT1_PIN));
+}
+
+/* ?? PCINT ???????????????????????????????????????????????????????? */
+static void pcint_init(void)
+{
+    PCMSK2 |= (1 << PCINT20) | (1 << PCINT21);
+    PCICR  |= (1 << PCIE2);
+}
+
+/* ?? Modo 0: potenciómetros ??????????????????????????????????????? */
+static void mode_pot_run(void)
+{
+    for (uint8_t i = 0; i < SERVO_COUNT; i++) {
+        uint16_t v = adc_read(i);
+        uint8_t  a = (uint8_t)(((uint32_t)v * 90) / 1023);
+        servo_set_angle((servo_id_t)i, a);
+    }
+}
+
+static void mode_placeholder_run(void) {}
+
+/* ?? Tabla de modos ??????????????????????????????????????????????? */
+typedef void (*mode_fn_t)(void);
+static const mode_fn_t mode_run_table[NUM_MODES] = {
+    mode_pot_run,
+    mode_uart_run,
+    mode_placeholder_run,
+    mode_placeholder_run,
+};
+
+typedef void (*mode_hook_t)(void);
+static const mode_hook_t mode_enter_table[NUM_MODES] = {
+    NULL,
+    mode_uart_enter,
+    NULL,
+    NULL,
+};
+static const mode_hook_t mode_exit_table[NUM_MODES] = {
+    NULL,
+    mode_uart_exit,
+    NULL,
+    NULL,
+};
+
+/* ?? Main ????????????????????????????????????????????????????????? */
+int main(void)
+{
+    gpio_init();
+    adc_init();
+    servo_init_all();
+    initUART();
+    pcint_init();
+    leds_update(0);
+    sei();
+
+    uint8_t mode_prev = 0;
+
+    while (1) {
+        if (mode_changed) {
+            cli();
+            uint8_t m_new = mode_current;
+            mode_changed  = 0;
+            sei();
+
+            if (mode_exit_table[mode_prev] != NULL)
+                mode_exit_table[mode_prev]();
+
+            if (mode_enter_table[m_new] != NULL)
+                mode_enter_table[m_new]();
+
+            leds_update(m_new);
+            mode_prev = m_new;
+        }
+
+        cli();
+        uint8_t m = mode_current;
+        sei();
+        mode_run_table[m]();
+
+        _delay_ms(20);
+    }
+}

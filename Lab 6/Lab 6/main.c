@@ -30,15 +30,11 @@ volatile uint8_t datoUSB = 0;
 int main(void)
 {
     cli();
-
-    DDRB  = 0x3F; // PB0–PB5 salida
-    PORTB = 0x00;
-
     setup();
     initUART();
-
+	writeString("HOLA MUNDO ");
     sei();
-
+	
     while (1)
     {
         leds(datoUSB);
@@ -50,6 +46,10 @@ int main(void)
 
 void setup(void)
 {
+	
+	DDRB  = 0x3F; // PB 0-5 salida
+	PORTB = 0x00;
+	//ADC
     DIDR0 |= (1<<ADC0D);
     ADMUX  = (1<<REFS0); // AVcc, ADC0
     ADCSRA = (1<<ADEN) | (1<<ADPS2) | (1<<ADPS1) | (1<<ADPS0); // prescaler 128
@@ -62,16 +62,16 @@ uint16_t leerADC(void)
     return ADC;
 }
 
-void leds(uint8_t dato)
+void leds(uint8_t ascii)
 {
-    uint8_t bajo = dato & 0x0F;
-    uint8_t alto = (	dato >> 4) & 0x0F; 
+    uint8_t bajo = ascii & 0x0F;
+    uint8_t alto = (ascii >> 4); 
 
-    // Nibble bajo
+//Mitad baja
     PORTB = (1<<PB5) | bajo;
     _delay_ms(2);
 
-    // Nibble alto
+//Mitad alta
     PORTB = (1<<PB4) | alto;
     _delay_ms(2);
 }
@@ -81,6 +81,6 @@ void leds(uint8_t dato)
 
 ISR(USART_RX_vect)
 {
-    datoUSB = UDR0;      // Guardar dato recibido
+    datoUSB = UDR0;      // Guardar dato UART
     writeChar(datoUSB);  // Eco hacia terminal
 }
