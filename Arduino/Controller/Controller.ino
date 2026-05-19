@@ -2,7 +2,7 @@
 
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 
-//Consntante para agrandar un poco la Deadzone
+//Constante para agrandar un poco la Deadzone
 #define Deadzone 200
 
 //Definir tabla de pines
@@ -90,30 +90,30 @@ void processGamepad(ControllerPtr ctl) {
     dumpGamepad(ctl);
     uint8_t valor_nuevo = Puerto_salida;
 
-    //Stick Derecho (Primeros 2 bits)
-    int ry = ctl->axisRY();
+    //Stick Izquierdo (Primeros 2 bits)
+    int ly = ctl->axisY();
 
     // Borrar bits 0,1
     valor_nuevo &= 0b1100;
 
-    if (ry < -Deadzone) {          // Arriba
-        valor_nuevo |= 0b0001;    
+    if (ly > Deadzone) {           // Abajo
+        valor_nuevo |= 0b0001;
     }
-    else if (ry > Deadzone) {      // Abajo
-        valor_nuevo |= 0b0010;    
+    else if (ly < -Deadzone) {     // Arriba
+        valor_nuevo |= 0b0010;
     }
 
-    //Stick Izquierdo (Últimos 2 bits)
-    int ly = ctl->axisY();
+    //Stick Derecho (Últimos 2 bits)
+    int ry = ctl->axisRY();
 
-    // Limpiar bits 4-7
+    // Limpiar bits 2,3
     valor_nuevo &= 0b0011;
 
-    if (ly < -Deadzone) {          // Arriba
-        valor_nuevo |= 0b0100; 
+    if (ry > Deadzone) {           // Abajo
+        valor_nuevo |= 0b0100;
     }
-    else if (ly > Deadzone) {      // Abajo
-        valor_nuevo |= 0b1000;    
+    else if (ry < -Deadzone) {     // Arriba
+        valor_nuevo |= 0b1000;
     }
 
     Puerto_salida = valor_nuevo;
