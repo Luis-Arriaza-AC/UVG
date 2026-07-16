@@ -38,17 +38,17 @@ from Adafruit_IO import MQTTClient
 # ─────────────────────────────────────────────────────────────
 
 ADAFRUIT_IO_USERNAME = "LF_AC"
-ADAFRUIT_IO_KEY      = "aio_SlAc27FIIbZYmauAAKCgNEYQTUJX"
+ADAFRUIT_IO_KEY      = "aio_WPpq80CeD61IH35XGHNpVdEOBcYR"
 
 # ─────────────────────────────────────────────────────────────
 # Feeds
 # ─────────────────────────────────────────────────────────────
 
 FEEDS = {
-    "servo-1": "1",
+    "servo-4": "1",
     "servo-2": "2",
     "servo-3": "3",
-    "servo-4": "4",
+    "servo-1": "4",
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ def message(client, feed_id, payload):
         return
 
     # limitar rangos
-    if feed_id in ("servo-1", "servo-2"):
+    if feed_id in ("servo-4", "servo-2"):
 
         valor = max(0, min(90, valor))
 

@@ -294,87 +294,121 @@ void mode0_control_with_pot(void) {
 
 void mode1_serial_control(void) {
 
-	static char buffer[5];
-	static uint8_t index = 0;
+    static char rx_buffer[8];
+    static uint8_t rx_index = 0;
 
-	while (uart_available()) {
+    while (uart_available()) {
 
-		char c = readChar();
+        char c = readChar();
 
-		/* ignorar basura */
-		if (c == '\n')
-		continue;
+        /* ignorar LF */
+        if (c == '\n')
+            continue;
 
-		/* fin de comando */
-		if (c == '\r') {
+        /* fin de comando */
+        if (c == '\r') {
 
-			buffer[index] = '\0';
+            rx_buffer[rx_index] = '\0';
 
-			/* comando minimo: 11 */
-			if (index >= 2) {
+            /*
+                formato esperado:
 
-				char servo_id = buffer[0];
+                190
+                245
+                3180
+            */
 
-				uint8_t angle = atoi(&buffer[1]);
+            if (rx_index >= 2) {
 
-				if (angle > 180)
-				angle = 180;
+                char servo = rx_buffer[0];
 
-				switch (servo_id) {
+                uint8_t angle = atoi(&rx_buffer[1]);
 
-					case '1':
-					pos_d3 = angle;
-					servo_move(h_d3, angle);
-					break;
+                if (angle > 180)
+                    angle = 180;
 
-					case '2':
-					pos_d9 = angle;
-					servo_move(h_d9, limit_angle(angle));
-					break;
+                switch (servo) {
 
-					case '3':
-					pos_d10 = angle;
-					servo_move(h_d10, angle);
-					break;
+                    case '1':
 
-					case '4':
-					pos_d11 = angle;
-					servo_move(h_d11, limit_angle(angle));
-					break;
-				}
-			}
+                        pos_d3 = angle;
 
-			/* reset parser */
-			index = 0;
-		}
+                        servo_move(h_d3, angle);
 
-		/* acumular */
-		else {
+                        break;
 
-			if (index < sizeof(buffer)-1) {
+                    case '2':
 
-				buffer[index++] = c;
-			}
-			else {
+                        pos_d9 = angle;
 
-				/* overflow -> reset */
-				index = 0;
-			}
-		}
-	}
+                        servo_move(h_d9, limit_angle(angle));
 
-	/* guardar EEPROM */
-	if (save_button_event) {
+                        break;
 
-		save_button_event = 0;
+                    case '3':
 
-		save_current_positions();
+                        pos_d10 = angle;
 
-		current_save_slot++;
+                        servo_move(h_d10, angle);
 
-		if (current_save_slot >= EEPROM_SLOTS)
-		current_save_slot = 0;
-	}
+                        break;
+
+                    case '4':
+
+                        pos_d11 = angle;
+
+                        servo_move(h_d11, limit_angle(angle));
+
+                        break;
+                }
+            }
+
+            /* reset parser */
+            rx_index = 0;
+        }
+
+        else {
+
+            /*
+                aceptar solo:
+                0-9
+            */
+
+            if (
+                (c >= '0' && c <= '9')
+            ) {
+
+                if (rx_index < sizeof(rx_buffer)-1) {
+
+                    rx_buffer[rx_index++] = c;
+                }
+                else {
+
+                    /* overflow -> reset */
+                    rx_index = 0;
+                }
+            }
+
+            else {
+
+                /* basura -> reset */
+                rx_index = 0;
+            }
+        }
+    }
+
+    /* guardar EEPROM */
+    if (save_button_event) {
+
+        save_button_event = 0;
+
+        save_current_positions();
+
+        current_save_slot++;
+
+        if (current_save_slot >= EEPROM_SLOTS)
+            current_save_slot = 0;
+    }
 }
 
 /* ????????????????????????????????????????????????????????????? */
