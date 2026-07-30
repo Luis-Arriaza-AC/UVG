@@ -64,6 +64,7 @@ int main(void)
     sei();
 
     char buffer[16];
+	char buffer_uart[20];
     
     // Configurar encabezado en la primera línea (Fila 0) - Queda estático
     lcd_set_cursor(0, 0);
@@ -85,8 +86,8 @@ int main(void)
         /* --- Parte 3: Envío por UART únicamente cuando se recibe 'D' --- */
         if (flag_send_uart)
         {
-            snprintf(buffer, sizeof(buffer), "S1:%u.%02uv S2:%u \r\n", enterosh, decimales, adc_s2);
-            writeString(buffer);
+            snprintf(buffer_uart, sizeof(buffer_uart), "S1:%u.%02uv S2:%u \r\n", enterosh, decimales, adc_s2);
+            writeString(buffer_uart);
             flag_send_uart = 0; // Limpiar la bandera hasta el próximo comando 'D'
         }
         
