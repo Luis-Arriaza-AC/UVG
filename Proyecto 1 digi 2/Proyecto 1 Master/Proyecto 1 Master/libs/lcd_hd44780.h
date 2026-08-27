@@ -38,6 +38,7 @@
 #define LCD_SHIFT_DISPLAY_RIGHT  0x1C
 #define LCD_SHIFT_DISPLAY_LEFT  0x18
 
+
 /* Flags para Entry Mode */
 #define LCD_ENTRY_INCREMENT 0x02
 #define LCD_ENTRY_DECREMENT 0x00
