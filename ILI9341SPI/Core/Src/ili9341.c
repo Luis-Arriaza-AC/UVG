@@ -443,3 +443,53 @@ void LCD_BitmapMasked(int x, int y, int w, int h, const uint16_t *bitmap,
 
 	LCD_CS_H();
 }
+
+/* Comando acotado del HUD: HAL mantiene SPE y finaliza el envio. */
+static uint8_t LCD_HUD_Command(uint8_t command, uint8_t *args, uint16_t count) {
+    LCD_DC_L();
+    if (HAL_SPI_Transmit(&hspi1, &command, 1, 100U) != HAL_OK) return 0;
+    LCD_DC_H();
+    return count == 0U || HAL_SPI_Transmit(&hspi1, args, count, 100U) == HAL_OK;
+}
+
+/* HUD: coordenadas visuales (0,0 = arriba izquierda) para el montaje actual
+ * con X reflejada. No cambia MADCTL ni el comportamiento de LCD_Print.
+ * Llamar solo con DMA inactivo. Una transferencia por glifo. */
+void LCD_PrintHUD(const char *text, int x, int y, int fontSize, int color,
+                  int background) {
+    if (!text || (fontSize != 1 && fontSize != 2) || x < 0 || y < 0) return;
+    const int w = fontSize == 1 ? fontXSizeSmal : fontXSizeBig;
+    const int h = fontSize == 1 ? fontYSizeSmal : fontYSizeBig;
+    if (y > LCD_HEIGHT - h) return;
+    uint8_t glyph[16 * 16 * 2];
+    while (*text && x <= LCD_WIDTH - w) {
+        unsigned char c = (unsigned char)*text++;
+        if (c < 32U || c > 126U) c = '?';
+        int i = 0;
+        for (int row = 0; row < h; ++row) {
+            uint16_t bits = fontSize == 1 ? smallFont[(c - 32U)*h + row]
+                                        : bigFont[(c - 32U)*h + row];
+            /* Columnas invertidas dentro del glifo; caracteres tambien
+             * avanzan en X fisica decreciente, por el espejo del panel. */
+            for (int col = 0; col < w; ++col) {
+                uint16_t pixel = (bits & (1U << col)) ? color : background;
+                glyph[i++] = (uint8_t)(pixel >> 8);
+                glyph[i++] = (uint8_t)pixel;
+            }
+        }
+        unsigned int physicalX = (unsigned int)(LCD_WIDTH - x - w);
+        uint8_t column[4] = {(uint8_t)(physicalX >> 8), (uint8_t)physicalX,
+            (uint8_t)((physicalX+w-1U) >> 8), (uint8_t)(physicalX+w-1U)};
+        uint8_t page[4] = {(uint8_t)(y >> 8), (uint8_t)y,
+            (uint8_t)((y+h-1) >> 8), (uint8_t)(y+h-1)};
+        LCD_CS_L();
+        if (!LCD_HUD_Command(0x2A, column, 4) ||
+            !LCD_HUD_Command(0x2B, page, 4) || !LCD_HUD_Command(0x2C, 0, 0)) {
+            LCD_CS_H(); Error_Handler(); return;
+        }
+        HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, glyph, (uint16_t)i, 100U);
+        LCD_CS_H();
+        if (status != HAL_OK) { Error_Handler(); return; }
+        x += w;
+    }
+}
